@@ -9,6 +9,7 @@ use breez_sdk_spark::{
     default_postgres_storage_config,
 };
 use clap::Parser;
+use clap::ValueEnum;
 use command::{Command, execute_command};
 use rustyline::Editor;
 use rustyline::error::ReadlineError;
@@ -25,8 +26,8 @@ struct Cli {
     data_dir: String,
 
     /// Network to use (mainnet, regtest)
-    #[arg(long, default_value = "regtest")]
-    network: String,
+    #[arg(long, value_enum, default_value = "regtest")]
+    network: NetworkArg,
 
     /// Account number to use for the Spark signer
     #[arg(long)]
@@ -200,16 +201,27 @@ async fn run_interactive_mode(
     Ok(())
 }
 
+#[derive(Clone, Debug, ValueEnum)]
+enum NetworkArg {
+    Regtest,
+    Mainnet,
+}
 #[tokio::main]
-async fn main() -> Result<(), anyhow::Error> {
+async fn main() {
+    if let Err(e) = run().await {
+        eprintln!("error: {e}");
+        std::process::exit(1);
+    }
+}
+
+async fn run() -> Result<(), anyhow::Error> {
     let cli = Cli::parse();
     let data_dir = expand_path(&cli.data_dir);
     fs::create_dir_all(&data_dir)?;
 
-    let network = match cli.network.to_lowercase().as_str() {
-        "regtest" => Network::Regtest,
-        "mainnet" => Network::Mainnet,
-        _ => return Err(anyhow!("Invalid network. Use 'regtest' or 'mainnet'")),
+    let network = match cli.network {
+        NetworkArg::Regtest => Network::Regtest,
+        NetworkArg::Mainnet => Network::Mainnet,
     };
 
     Box::pin(run_interactive_mode(
